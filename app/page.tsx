@@ -29,6 +29,14 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
@@ -128,7 +136,7 @@ export default function Page() {
       setUnavailableDates([]);
       toast({
         title: "Membro atualizado",
-        description: `As datas de indisponibilidade do membro ${name} foram atualizadas para ${formatLocalized(selectedMonth, "MMMM yyyy")}.`,
+        description: `As datas de indisponibilidade do membro ${name} foram atualizadas para ${formatLocalized(selectedMonth, "MMMM 'de' yyyy")}.`,
       });
     }
   };
@@ -155,7 +163,7 @@ export default function Page() {
         });
         toast({
           title: "Arquivo processado",
-          description: `Membros e suas respectivas datas de indisponbilidade foram atualizados para ${formatLocalized(selectedMonth, "MMMM yyyy")}.`,
+          description: `Membros e suas respectivas datas de indisponbilidade foram atualizados para ${formatLocalized(selectedMonth, "MMMM 'de' yyyy")}.`,
         });
       };
       reader.readAsText(file);
@@ -176,7 +184,7 @@ export default function Page() {
       content,
       `membros_${formatLocalized(selectedMonth, "yyyy-MM")}`,
       "Arquivo exportado",
-      `${members.length} membros e suas respectivas datas de indispobilidade para ${formatLocalized(selectedMonth, "MMMM yyyy")} foram exportados.`,
+      `${members.length} membros e suas respectivas datas de indispobilidade para ${formatLocalized(selectedMonth, "MMMM 'de' yyyy")} foram exportados.`,
     );
   };
 
@@ -191,23 +199,36 @@ export default function Page() {
     );
   };
 
-  const handleScheduleExport = () => {
-    const content = schedule
+  const generateScheduleOutput = (): string => {
+    return schedule
       .map(
         (schedule) =>
           `*${formatLocalized(schedule.date, "EEEE, dd MMM")}*\n` +
           schedule.members.map((member) => member).join("\n"),
       )
       .join("\n\n");
+  };
 
-    const date = formatLocalized(schedule[0].date, "yyyy-MM");
+  const handleScheduleExport = () => {
+    const formattedDate = formatLocalized(schedule[0].date, "yyyy-MM");
 
     handleTextFileExport(
-      content,
-      `escala_${date}`,
+      generateScheduleOutput(),
+      `escala_${formattedDate}`,
       "Arquivo exportado",
-      `Escala para ${date} foi exportada.`,
+      `Escala para ${formattedDate} foi exportada.`,
     );
+  };
+
+  const handleScheduleCopy = () => {
+    const formattedDate = formatLocalized(schedule[0].date, "yyyy-MM");
+
+    navigator.clipboard.writeText(generateScheduleOutput());
+
+    toast({
+      title: "Escala copiada",
+      description: `Escala para ${formattedDate} foi copiada para a área de transferência.`,
+    });
   };
 
   const generateSchedule = () => {
@@ -270,7 +291,7 @@ export default function Page() {
     setSchedule(schedule);
     toast({
       title: "Escala gerada",
-      description: `Uma nova escala para ${formatLocalized(selectedMonth, "MMMM yyyy")} foi gerada.`,
+      description: `Uma nova escala para ${formatLocalized(selectedMonth, "MMMM 'de' yyyy")} foi gerada.`,
     });
   };
 
@@ -292,7 +313,7 @@ export default function Page() {
                   console.log(value);
                   if (value && value != "") {
                     setSelectedMonth(
-                      parse(value, "MMMM yyyy", new Date(), { locale: ptBR }),
+                      parse(value, "MMMM 'de' yyyy", new Date(), { locale: ptBR }),
                     );
                   }
                 }}
@@ -305,10 +326,10 @@ export default function Page() {
                     addMonths(new Date(), i),
                   ).map((date) => (
                     <SelectItem
-                      key={formatLocalized(date, "MMMM yyyy")}
-                      value={formatLocalized(date, "MMMM yyyy")}
+                      key={formatLocalized(date, "MMMM 'de' yyyy")}
+                      value={formatLocalized(date, "MMMM 'de' yyyy")}
                     >
-                      {formatLocalized(date, "MMMM yyyy")}
+                      {formatLocalized(date, "MMMM 'de' yyyy")}
                     </SelectItem>
                   ))}
                 </SelectContent>
@@ -444,7 +465,7 @@ export default function Page() {
         <CardHeader>
           <CardTitle>
             Membros e datas de indisponibilidade para{" "}
-            {formatLocalized(selectedMonth, "MMMM yyyy")}
+            {formatLocalized(selectedMonth, "MMMM 'de' yyyy")}
           </CardTitle>
           <CardDescription>
             Visualize todos os membros e suas respectivas datas de
@@ -479,7 +500,7 @@ export default function Page() {
           ) : (
             <p className="text-muted-foreground">
               Ainda não há membros para{" "}
-              {formatLocalized(selectedMonth, "MMMM yyyy")}.
+              {formatLocalized(selectedMonth, "MMMM 'de' yyyy")}.
             </p>
           )}
         </CardContent>
@@ -488,20 +509,53 @@ export default function Page() {
         <Card className="w-full md:w-2/3">
           <CardHeader>
             <CardTitle>
-              Escala gerada para {formatLocalized(selectedMonth, "MMMM yyyy")}
+              Escala gerada para {formatLocalized(selectedMonth, "MMMM 'de' yyyy")}
             </CardTitle>
             <CardDescription>
               Escala para dias de fim de semana para o mês selecionado.
             </CardDescription>
-            <Button
-              onClick={handleScheduleExport}
-              variant="default"
-              className="w-full"
-              disabled={members.length === 0}
-            >
-              <Download className="mr-2 h-4 w-4" />
-              Exportar escala
-            </Button>
+            <Dialog>
+              <DialogTrigger>
+                <Button
+                  variant="default"
+                  className="w-full"
+                  disabled={members.length === 0}
+                >
+                  <Download className="mr-2 h-4 w-4" />
+                  Exportar escala
+                </Button>
+              </DialogTrigger>
+              <DialogContent>
+                <DialogHeader>
+                  <DialogTitle>
+                    Escala para{" "}
+                    {formatLocalized(selectedMonth, "MMMM 'de' yyyy")}
+                  </DialogTitle>
+                  <DialogDescription>
+                    Exporte a escala para um arquivo de texto ou, se preferir,
+                    copie para a área de transferência diretamente.
+                  </DialogDescription>
+                  <Button
+                    onClick={handleScheduleExport}
+                    variant="default"
+                    className="w-full"
+                    disabled={members.length === 0}
+                  >
+                    <Download className="mr-2 h-4 w-4" />
+                    Exportar para arquivo de texto
+                  </Button>
+                  <Button
+                    onClick={handleScheduleCopy}
+                    variant="outline"
+                    className="w-full"
+                    disabled={members.length === 0}
+                  >
+                    <Download className="mr-2 h-4 w-4" />
+                    Copiar para a àrea de transferência
+                  </Button>
+                </DialogHeader>
+              </DialogContent>
+            </Dialog>
           </CardHeader>
           <CardContent>
             <div className="grid grid-cols-1 sm:grid-cols-1 lg:grid-cols-3 gap-4">
