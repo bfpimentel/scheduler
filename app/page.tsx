@@ -14,8 +14,7 @@ import {
   isFriday,
 } from "date-fns";
 import { ptBR } from "date-fns/locale";
-
-import { cn, formatLocalized } from "@/lib/utils";
+import { cn, formatLocalized, randomInt } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Calendar } from "@/components/ui/calendar";
 import {
@@ -48,7 +47,7 @@ type Member = {
   unavailableDates: Date[];
 };
 
-type ScheduleEntry = {
+type Schedule = {
   date: Date;
   members: string[];
 };
@@ -59,7 +58,7 @@ export default function Page() {
   const [unavailableDates, setUnavailableDates] = useState<Date[]>([]);
   const [currentDate, setCurrentDate] = useState<Date>();
   const [selectedMonth, setSelectedMonth] = useState<Date>(new Date());
-  const [schedule, setSchedule] = useState<ScheduleEntry[]>([]);
+  const [schedule, setSchedule] = useState<Schedule[]>([]);
   const { toast } = useToast();
 
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -213,14 +212,14 @@ export default function Page() {
       return;
     }
 
-    const weekendDates = monthDates.filter(
-      (date) => isSaturday(date) || isSunday(date) || isFriday(date),
-    );
-    const newSchedule: ScheduleEntry[] = [];
+    const schedule: Schedule[] = [];
     const memberAssignmentCounts: { [key: string]: number } = {};
 
-    weekendDates.forEach((date) => {
-      const availableForDate = members.filter(
+    const dates = monthDates.filter(
+      (date) => isSaturday(date) || isSunday(date) || isFriday(date),
+    );
+    dates.forEach((date) => {
+      let availableForDate = members.filter(
         (member) =>
           !member.unavailableDates.some((unavailableDate) =>
             isEqual(unavailableDate, date),
@@ -230,23 +229,37 @@ export default function Page() {
       if (availableForDate.length > 0) {
         const maxMembers =
           availableForDate.length < 4 ? availableForDate.length : 4;
-        const scheduleMembers = [];
-        for (let index = 0; index < maxMembers; index++) {
-          availableForDate.sort(
+        const scheduleMembers: string[] = [];
+
+        for (let memberIndex = 0; memberIndex < maxMembers; memberIndex++) {
+          availableForDate = availableForDate.sort(
             (a, b) =>
               (memberAssignmentCounts[a.name] || 0) -
               (memberAssignmentCounts[b.name] || 0),
           );
-          const selectedMember = availableForDate[0];
-          memberAssignmentCounts[selectedMember.name] =
-            (memberAssignmentCounts[selectedMember.name] || 0) + 1;
-          scheduleMembers.push(selectedMember.name);
+
+          while (true) {
+            const index = randomInt(0, availableForDate.length - 1);
+            const selectedMember = availableForDate[index];
+            if (
+              !scheduleMembers.some(
+                (alreadyScheduledMember) =>
+                  alreadyScheduledMember == selectedMember.name,
+              )
+            ) {
+              memberAssignmentCounts[selectedMember.name] =
+                (memberAssignmentCounts[selectedMember.name] || 0) + 1;
+              scheduleMembers.push(selectedMember.name);
+              break;
+            }
+          }
         }
-        newSchedule.push({ date, members: scheduleMembers });
+
+        schedule.push({ date, members: scheduleMembers });
       }
     });
 
-    setSchedule(newSchedule);
+    setSchedule(schedule);
     toast({
       title: "Escala gerada",
       description: `Uma nova escala para ${formatLocalized(selectedMonth, "MMMM yyyy")} foi gerada.`,
@@ -352,7 +365,7 @@ export default function Page() {
                     key={date.getTime()}
                     className="flex items-center bg-secondary text-secondary-foreground rounded-full px-3 py-1 text-sm"
                   >
-                    {formatLocalized(date, "MMM d")}
+                    {formatLocalized(date, "dd/MM")}
                     <Button
                       type="button"
                       variant="ghost"
@@ -440,7 +453,7 @@ export default function Page() {
                   </CardHeader>
                   <CardContent className="p-4 pt-0">
                     <ScrollArea className="h-[60px]">
-                      <div className="flex flex-wrap gap-2">
+                      <div className="flex flex-wrap gap-1">
                         {member.unavailableDates.map((date) => (
                           <span
                             key={date.getTime()}
