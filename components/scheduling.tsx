@@ -256,9 +256,7 @@ export default function Scheduling() {
     <div className="min-h-screen bg-background flex flex-col">
       <header className="border-b">
         <div className="container mx-auto py-4">
-          <h1 className="text-2xl font-bold">
-            Gerador de escala
-          </h1>
+          <h1 className="text-2xl font-bold">Gerador de escala</h1>
         </div>
       </header>
       <main className="flex-grow container mx-auto py-6 px-4 md:px-0 flex flex-col md:flex-row gap-6">
@@ -504,7 +502,9 @@ export default function Scheduling() {
                     <CardContent className="p-4 pt-0">
                       <div>
                         {entry.members.map((member) => (
-                          <p className="text-sm">{member}</p>
+                          <p key={member} className="text-sm">
+                            {member}
+                          </p>
                         ))}
                       </div>
                     </CardContent>
