@@ -253,268 +253,261 @@ export default function Scheduling() {
   };
 
   return (
-    <div className="min-h-screen bg-background flex flex-col">
-      <header className="border-b">
-        <div className="container mx-auto py-4">
-          <h1 className="text-2xl font-bold">Gerador de escala</h1>
-        </div>
-      </header>
-      <main className="flex-grow container mx-auto py-6 px-4 md:px-0 flex flex-col md:flex-row gap-6">
-        <Card className="w-full md:w-1/3">
-          <CardHeader>
-            <CardTitle>Adicionar/atualizar membro</CardTitle>
-            <CardDescription>
-              Insira os detalhes para um novo ou já existente membro.
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <form onSubmit={handleSubmit} className="space-y-4">
-              <div className="space-y-2">
-                <Label htmlFor="month-select">Selecionar mês</Label>
-                <Select
-                  onValueChange={(value) => {
-                    console.log(value);
-                    if (value && value != "") {
-                      setSelectedMonth(
-                        parse(value, "MMMM yyyy", new Date(), { locale: ptBR }),
-                      );
-                    }
-                  }}
-                >
-                  <SelectTrigger id="month-select">
-                    <SelectValue placeholder="Selecione um mês" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {Array.from({ length: 12 }, (_, i) =>
-                      addMonths(new Date(), i),
-                    ).map((date) => (
-                      <SelectItem
-                        key={formatLocalized(date, "MMMM yyyy")}
-                        value={formatLocalized(date, "MMMM yyyy")}
-                      >
-                        {formatLocalized(date, "MMMM yyyy")}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="name">Nome</Label>
-                <Input
-                  id="name"
-                  placeholder="Insira um nome"
-                  value={name}
-                  onChange={(e) => setName(e.target.value)}
-                  required
-                />
-              </div>
-              <div className="space-y-2">
-                <Label>Datas de indisponibilidade</Label>
-                <div className="flex space-x-2">
-                  <Popover>
-                    <PopoverTrigger asChild>
-                      <Button
-                        variant={"outline"}
-                        className={cn(
-                          "w-full justify-start text-left font-normal",
-                          !currentDate && "text-muted-foreground",
-                        )}
-                      >
-                        <CalendarIcon className="mr-2 h-4 w-4" />
-                        {currentDate ? (
-                          formatLocalized(currentDate, "PPP")
-                        ) : (
-                          <span>Escolha uma data</span>
-                        )}
-                      </Button>
-                    </PopoverTrigger>
-                    <PopoverContent className="w-auto p-0">
-                      <Calendar
-                        mode="single"
-                        selected={currentDate}
-                        onSelect={setCurrentDate}
-                        defaultMonth={selectedMonth}
-                        fromDate={monthDates[0]}
-                        toDate={monthDates[monthDates.length - 1]}
-                        initialFocus
-                      />
-                    </PopoverContent>
-                  </Popover>
-                  <Button
-                    type="button"
-                    onClick={handleAddDate}
-                    disabled={!currentDate}
-                  >
-                    <PlusCircle className="h-4 w-4" />
-                    <span className="sr-only">Adicionar data</span>
-                  </Button>
-                </div>
-              </div>
-              <ScrollArea className="h-[100px] w-full rounded-md border p-4">
-                <div className="flex flex-wrap gap-2">
-                  {unavailableDates.map((date) => (
-                    <div
-                      key={date.getTime()}
-                      className="flex items-center bg-secondary text-secondary-foreground rounded-full px-3 py-1 text-sm"
+    <div className="flex-grow container mx-auto py-6 px-4 md:px-0 flex flex-col md:flex-row gap-6">
+      <Card className="w-full md:w-1/3">
+        <CardHeader>
+          <CardTitle>Adicionar/atualizar membro</CardTitle>
+          <CardDescription>
+            Insira os detalhes para um novo ou já existente membro.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <form onSubmit={handleSubmit} className="space-y-4">
+            <div className="space-y-2">
+              <Label htmlFor="month-select">Selecionar mês</Label>
+              <Select
+                onValueChange={(value) => {
+                  console.log(value);
+                  if (value && value != "") {
+                    setSelectedMonth(
+                      parse(value, "MMMM yyyy", new Date(), { locale: ptBR }),
+                    );
+                  }
+                }}
+              >
+                <SelectTrigger id="month-select">
+                  <SelectValue placeholder="Selecione um mês" />
+                </SelectTrigger>
+                <SelectContent>
+                  {Array.from({ length: 12 }, (_, i) =>
+                    addMonths(new Date(), i),
+                  ).map((date) => (
+                    <SelectItem
+                      key={formatLocalized(date, "MMMM yyyy")}
+                      value={formatLocalized(date, "MMMM yyyy")}
                     >
-                      {formatLocalized(date, "MMM d")}
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="icon"
-                        className="ml-2 h-4 w-4 p-0"
-                        onClick={() => handleRemoveDate(date)}
-                      >
-                        <X className="h-3 w-3" />
-                        <span className="sr-only">Remover data</span>
-                      </Button>
-                    </div>
+                      {formatLocalized(date, "MMMM yyyy")}
+                    </SelectItem>
                   ))}
-                </div>
-              </ScrollArea>
-              <Button type="submit" className="w-full" disabled={name === ""}>
-                Adicionar/atualizar membro.
-              </Button>
-            </form>
-            <div className="space-y-2 mt-4">
-              <input
-                type="file"
-                accept=".txt"
-                onChange={handleFileUpload}
-                className="hidden"
-                ref={fileInputRef}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="name">Nome</Label>
+              <Input
+                id="name"
+                placeholder="Insira um nome"
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                required
               />
-              <Button
-                onClick={() => fileInputRef.current?.click()}
-                variant="outline"
-                className="w-full"
-              >
-                <Upload className="mr-2 h-4 w-4" />
-                Carregar arquivo de membros
-              </Button>
-              <Button
-                onClick={handleMembersOnlyExport}
-                variant="outline"
-                className="w-full"
-                disabled={members.length === 0}
-              >
-                <Download className="mr-2 h-4 w-4" />
-                Exportar membros
-              </Button>
-              <Button
-                onClick={handleMembersAndDatesExport}
-                variant="outline"
-                className="w-full"
-                disabled={members.length === 0}
-              >
-                <Download className="mr-2 h-4 w-4" />
-                Exportar membros e datas
-              </Button>
             </div>
-            <div className="space-y-2 mt-8">
-              <Button
-                onClick={generateSchedule}
-                variant="default"
-                className="w-full"
-                disabled={members.length < 4}
-              >
-                <CalendarIcon className="mr-2 h-4 w-4" />
-                Gerar escala
-              </Button>
+            <div className="space-y-2">
+              <Label>Datas de indisponibilidade</Label>
+              <div className="flex space-x-2">
+                <Popover>
+                  <PopoverTrigger asChild>
+                    <Button
+                      variant={"outline"}
+                      className={cn(
+                        "w-full justify-start text-left font-normal",
+                        !currentDate && "text-muted-foreground",
+                      )}
+                    >
+                      <CalendarIcon className="mr-2 h-4 w-4" />
+                      {currentDate ? (
+                        formatLocalized(currentDate, "PPP")
+                      ) : (
+                        <span>Escolha uma data</span>
+                      )}
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-auto p-0">
+                    <Calendar
+                      mode="single"
+                      selected={currentDate}
+                      onSelect={setCurrentDate}
+                      defaultMonth={selectedMonth}
+                      fromDate={monthDates[0]}
+                      toDate={monthDates[monthDates.length - 1]}
+                      initialFocus
+                    />
+                  </PopoverContent>
+                </Popover>
+                <Button
+                  type="button"
+                  onClick={handleAddDate}
+                  disabled={!currentDate}
+                >
+                  <PlusCircle className="h-4 w-4" />
+                  <span className="sr-only">Adicionar data</span>
+                </Button>
+              </div>
             </div>
-          </CardContent>
-        </Card>
+            <ScrollArea className="h-[100px] w-full rounded-md border p-4">
+              <div className="flex flex-wrap gap-2">
+                {unavailableDates.map((date) => (
+                  <div
+                    key={date.getTime()}
+                    className="flex items-center bg-secondary text-secondary-foreground rounded-full px-3 py-1 text-sm"
+                  >
+                    {formatLocalized(date, "MMM d")}
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon"
+                      className="ml-2 h-4 w-4 p-0"
+                      onClick={() => handleRemoveDate(date)}
+                    >
+                      <X className="h-3 w-3" />
+                      <span className="sr-only">Remover data</span>
+                    </Button>
+                  </div>
+                ))}
+              </div>
+            </ScrollArea>
+            <Button type="submit" className="w-full" disabled={name === ""}>
+              Adicionar/atualizar membro.
+            </Button>
+          </form>
+          <div className="space-y-2 mt-4">
+            <input
+              type="file"
+              accept=".txt"
+              onChange={handleFileUpload}
+              className="hidden"
+              ref={fileInputRef}
+            />
+            <Button
+              onClick={() => fileInputRef.current?.click()}
+              variant="outline"
+              className="w-full"
+            >
+              <Upload className="mr-2 h-4 w-4" />
+              Carregar arquivo de membros
+            </Button>
+            <Button
+              onClick={handleMembersOnlyExport}
+              variant="outline"
+              className="w-full"
+              disabled={members.length === 0}
+            >
+              <Download className="mr-2 h-4 w-4" />
+              Exportar membros
+            </Button>
+            <Button
+              onClick={handleMembersAndDatesExport}
+              variant="outline"
+              className="w-full"
+              disabled={members.length === 0}
+            >
+              <Download className="mr-2 h-4 w-4" />
+              Exportar membros e datas
+            </Button>
+          </div>
+          <div className="space-y-2 mt-8">
+            <Button
+              onClick={generateSchedule}
+              variant="default"
+              className="w-full"
+              disabled={members.length < 4}
+            >
+              <CalendarIcon className="mr-2 h-4 w-4" />
+              Gerar escala
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
+      <Card className="w-full md:w-2/3">
+        <CardHeader>
+          <CardTitle>
+            Membros e datas de indisponibilidade para{" "}
+            {formatLocalized(selectedMonth, "MMMM yyyy")}
+          </CardTitle>
+          <CardDescription>
+            Visualize todos os membros e suas respectivas datas de
+            indisponibilidade.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          {members.length > 0 ? (
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+              {members.map((member) => (
+                <Card key={member.id} className="overflow-hidden">
+                  <CardHeader className="p-4">
+                    <CardTitle className="text-md">{member.name}</CardTitle>
+                  </CardHeader>
+                  <CardContent className="p-4 pt-0">
+                    <ScrollArea className="h-[60px]">
+                      <div className="flex flex-wrap gap-2">
+                        {member.unavailableDates.map((date) => (
+                          <span
+                            key={date.getTime()}
+                            className="bg-primary text-primary-foreground rounded-full px-2 py-1 text-xs"
+                          >
+                            {formatLocalized(date, "dd/MM")}
+                          </span>
+                        ))}
+                      </div>
+                    </ScrollArea>
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
+          ) : (
+            <p className="text-muted-foreground">
+              Ainda não há membros para{" "}
+              {formatLocalized(selectedMonth, "MMMM yyyy")}.
+            </p>
+          )}
+        </CardContent>
+      </Card>
+      {schedule.length > 0 && (
         <Card className="w-full md:w-2/3">
           <CardHeader>
             <CardTitle>
-              Membros e datas de indisponibilidade para{" "}
-              {formatLocalized(selectedMonth, "MMMM yyyy")}
+              Escala gerada para {formatLocalized(selectedMonth, "MMMM yyyy")}
             </CardTitle>
             <CardDescription>
-              Visualize todos os membros e suas respectivas datas de
-              indisponibilidade.
+              Escala para dias de fim de semana para o mês selecionado.
             </CardDescription>
+            <Button
+              onClick={handleMembersOnlyExport}
+              variant="default"
+              className="w-full"
+              disabled={members.length === 0}
+            >
+              <Download className="mr-2 h-4 w-4" />
+              Exportar escala
+            </Button>
           </CardHeader>
           <CardContent>
-            {members.length > 0 ? (
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-                {members.map((member) => (
-                  <Card key={member.id} className="overflow-hidden">
-                    <CardHeader className="p-4">
-                      <CardTitle className="text-md">{member.name}</CardTitle>
-                    </CardHeader>
-                    <CardContent className="p-4 pt-0">
-                      <ScrollArea className="h-[60px]">
-                        <div className="flex flex-wrap gap-2">
-                          {member.unavailableDates.map((date) => (
-                            <span
-                              key={date.getTime()}
-                              className="bg-primary text-primary-foreground rounded-full px-2 py-1 text-xs"
-                            >
-                              {formatLocalized(date, "dd/MM")}
-                            </span>
-                          ))}
-                        </div>
-                      </ScrollArea>
-                    </CardContent>
-                  </Card>
-                ))}
-              </div>
-            ) : (
-              <p className="text-muted-foreground">
-                Ainda não há membros para{" "}
-                {formatLocalized(selectedMonth, "MMMM yyyy")}.
-              </p>
-            )}
+            <div className="grid grid-cols-1 sm:grid-cols-1 lg:grid-cols-2 gap-4">
+              {schedule.map((entry) => (
+                <Card
+                  key={entry.date.toISOString()}
+                  className="overflow-hidden"
+                >
+                  <CardHeader className="p-4 pb-0">
+                    <CardTitle className="text-md">
+                      {formatLocalized(entry.date, "EEEE, MMM d")}
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent className="p-4 pt-0">
+                    <div>
+                      {entry.members.map((member) => (
+                        <p key={member} className="text-sm">
+                          {member}
+                        </p>
+                      ))}
+                    </div>
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
           </CardContent>
         </Card>
-        {schedule.length > 0 && (
-          <Card className="w-full md:w-2/3">
-            <CardHeader>
-              <CardTitle>
-                Escala gerada para {formatLocalized(selectedMonth, "MMMM yyyy")}
-              </CardTitle>
-              <CardDescription>
-                Escala para dias de fim de semana para o mês selecionado.
-              </CardDescription>
-              <Button
-                onClick={handleMembersOnlyExport}
-                variant="default"
-                className="w-full"
-                disabled={members.length === 0}
-              >
-                <Download className="mr-2 h-4 w-4" />
-                Exportar escala
-              </Button>
-            </CardHeader>
-            <CardContent>
-              <div className="grid grid-cols-1 sm:grid-cols-1 lg:grid-cols-2 gap-4">
-                {schedule.map((entry) => (
-                  <Card
-                    key={entry.date.toISOString()}
-                    className="overflow-hidden"
-                  >
-                    <CardHeader className="p-4 pb-0">
-                      <CardTitle className="text-md">
-                        {formatLocalized(entry.date, "EEEE, MMM d")}
-                      </CardTitle>
-                    </CardHeader>
-                    <CardContent className="p-4 pt-0">
-                      <div>
-                        {entry.members.map((member) => (
-                          <p key={member} className="text-sm">
-                            {member}
-                          </p>
-                        ))}
-                      </div>
-                    </CardContent>
-                  </Card>
-                ))}
-              </div>
-            </CardContent>
-          </Card>
-        )}
-      </main>
+      )}
     </div>
   );
 }

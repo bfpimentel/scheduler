@@ -6,7 +6,14 @@ export default function Page() {
     <html lang="en">
       <head />
       <body>
-        <Scheduling />
+        <main className="min-h-screen bg-background flex flex-col">
+          <header className="border-b">
+            <div className="container mx-auto py-4">
+              <h1 className="text-2xl font-bold">Gerador de escala</h1>
+            </div>
+          </header>
+          <Scheduling />
+        </main>
         <Toaster />
       </body>
     </html>
