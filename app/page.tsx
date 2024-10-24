@@ -20,6 +20,16 @@ import {
   randomInt,
   handleTextFileExport,
 } from "@/lib/utils";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
 import { Calendar } from "@/components/ui/calendar";
 import {
@@ -65,13 +75,31 @@ type Schedule = {
   members: string[];
 };
 
+type Confirmation = {
+  isOpen: boolean;
+  confirmAction: () => void;
+  cancelAction: () => void;
+  description: string;
+};
+
 export default function Page() {
+  const availableMonths: Date[] = Array.from({ length: 12 }, (_, i: number) =>
+    addMonths(new Date(), i),
+  );
+
   const [members, setMembers] = useState<Member[]>([]);
   const [name, setName] = useState("");
   const [unavailableDates, setUnavailableDates] = useState<Date[]>([]);
   const [currentDate, setCurrentDate] = useState<Date>();
-  const [selectedMonth, setSelectedMonth] = useState<Date>(new Date());
+  const [selectedMonth, setSelectedMonth] = useState<Date>(availableMonths[0]);
   const [schedule, setSchedule] = useState<Schedule[]>([]);
+  const [confirmation, setConfirmation] = useState<Confirmation>({
+    isOpen: false,
+    confirmAction: () => {},
+    cancelAction: () => {},
+    description: "",
+  });
+
   const { toast } = useToast();
 
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -81,6 +109,16 @@ export default function Page() {
     const end = endOfMonth(selectedMonth);
     return eachDayOfInterval({ start, end });
   }, [selectedMonth]);
+
+  const handleMonthSelection = (monthValue: string) => {
+    if (monthValue && monthValue != "") {
+      setSelectedMonth(
+        parse(monthValue, "MMMM 'de' yyyy", new Date(), {
+          locale: ptBR,
+        }),
+      );
+    }
+  };
 
   const handleAddDate = () => {
     if (
@@ -148,6 +186,8 @@ export default function Page() {
       reader.onload = (event) => {
         const content = event.target?.result as string;
         const lines = content.split("\n");
+        let hasSetMonth = false;
+
         lines.forEach((line) => {
           const [name, ...dateParts] = line.split(",");
           const dates = dateParts
@@ -157,8 +197,15 @@ export default function Page() {
                 !isNaN(date.getTime()) &&
                 monthDates.some((monthDate) => isEqual(monthDate, date)),
             );
-          if (name && dates.length > 0) {
-            updateMember(name.trim(), dates);
+
+          if (name) {
+            if (dates.length > 0 && !hasSetMonth) {
+              setSelectedMonth(dates[0]);
+              setMembers([]);
+              hasSetMonth = true;
+            }
+
+            updateMember(name.trim(), dates ?? []);
           }
         });
         toast({
@@ -301,7 +348,7 @@ export default function Page() {
         <CardHeader>
           <CardTitle>Adicionar/atualizar membro</CardTitle>
           <CardDescription>
-            Insira os detalhes para um novo ou já existente membro.
+            Insira os detalhes para um novo membro ou um que já está cadastrado.
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -309,22 +356,21 @@ export default function Page() {
             <div className="space-y-2">
               <Label htmlFor="month-select">Selecionar mês</Label>
               <Select
-                onValueChange={(value) => {
-                  console.log(value);
-                  if (value && value != "") {
-                    setSelectedMonth(
-                      parse(value, "MMMM 'de' yyyy", new Date(), { locale: ptBR }),
-                    );
-                  }
-                }}
+                value={formatLocalized(selectedMonth, "MMMM 'de' yyyy")}
+                onValueChange={(value) =>
+                  setConfirmation({
+                    isOpen: true,
+                    confirmAction: () => handleMonthSelection(value),
+                    cancelAction: () => setSelectedMonth(selectedMonth),
+                    description: `Ao selecionar um mês diferente do atual, todos os cadastros atuais serão excluídos. Certifique-se que a configuração atual foi exportado antes de continuar.,`,
+                  })
+                }
               >
                 <SelectTrigger id="month-select">
                   <SelectValue placeholder="Selecione um mês" />
                 </SelectTrigger>
                 <SelectContent>
-                  {Array.from({ length: 12 }, (_, i) =>
-                    addMonths(new Date(), i),
-                  ).map((date) => (
+                  {availableMonths.map((date) => (
                     <SelectItem
                       key={formatLocalized(date, "MMMM 'de' yyyy")}
                       value={formatLocalized(date, "MMMM 'de' yyyy")}
@@ -417,12 +463,19 @@ export default function Page() {
             <input
               type="file"
               accept=".txt"
-              onChange={handleFileUpload}
               className="hidden"
               ref={fileInputRef}
+              onChange={handleFileUpload}
             />
             <Button
-              onClick={() => fileInputRef.current?.click()}
+              onClick={() =>
+                setConfirmation({
+                  isOpen: true,
+                  confirmAction: () => fileInputRef.current?.click(),
+                  cancelAction: () => setSelectedMonth(selectedMonth),
+                  description: `Ao importar as configurações de um mês diferente do selecionado, todos os cadastros atuais serão excluídos. Certifique-se que a configuração atual foi exportado antes de continuar.,`,
+                })
+              }
               variant="outline"
               className="w-full"
             >
@@ -504,12 +557,36 @@ export default function Page() {
             </p>
           )}
         </CardContent>
+        <AlertDialog
+          open={confirmation.isOpen}
+          onOpenChange={(isOpen) =>
+            setConfirmation({ ...confirmation, isOpen: isOpen })
+          }
+        >
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>Cuidado!</AlertDialogTitle>
+              <AlertDialogDescription>
+                {confirmation.description}
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel onClick={confirmation.cancelAction}>
+                Cancelar
+              </AlertDialogCancel>
+              <AlertDialogAction onClick={confirmation.confirmAction}>
+                Continuar
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
       </Card>
       {schedule.length > 0 && (
         <Card className="w-full md:w-2/3">
           <CardHeader>
             <CardTitle>
-              Escala gerada para {formatLocalized(selectedMonth, "MMMM 'de' yyyy")}
+              Escala gerada para{" "}
+              {formatLocalized(selectedMonth, "MMMM 'de' yyyy")}
             </CardTitle>
             <CardDescription>
               Escala para dias de fim de semana para o mês selecionado.
@@ -535,25 +612,25 @@ export default function Page() {
                     Exporte a escala para um arquivo de texto ou, se preferir,
                     copie para a área de transferência diretamente.
                   </DialogDescription>
-                  <Button
-                    onClick={handleScheduleExport}
-                    variant="default"
-                    className="w-full"
-                    disabled={members.length === 0}
-                  >
-                    <Download className="mr-2 h-4 w-4" />
-                    Exportar para arquivo de texto
-                  </Button>
-                  <Button
-                    onClick={handleScheduleCopy}
-                    variant="outline"
-                    className="w-full"
-                    disabled={members.length === 0}
-                  >
-                    <Download className="mr-2 h-4 w-4" />
-                    Copiar para a àrea de transferência
-                  </Button>
                 </DialogHeader>
+                <Button
+                  onClick={handleScheduleExport}
+                  variant="default"
+                  className="w-full"
+                  disabled={members.length === 0}
+                >
+                  <Download className="mr-2 h-4 w-4" />
+                  Exportar para arquivo de texto
+                </Button>
+                <Button
+                  onClick={handleScheduleCopy}
+                  variant="outline"
+                  className="w-full"
+                  disabled={members.length === 0}
+                >
+                  <Download className="mr-2 h-4 w-4" />
+                  Copiar para a àrea de transferência
+                </Button>
               </DialogContent>
             </Dialog>
           </CardHeader>
