@@ -14,7 +14,12 @@ import {
   isFriday,
 } from "date-fns";
 import { ptBR } from "date-fns/locale";
-import { cn, formatLocalized, randomInt } from "@/lib/utils";
+import {
+  cn,
+  formatLocalized,
+  randomInt,
+  handleTextFileExport,
+} from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Calendar } from "@/components/ui/calendar";
 import {
@@ -167,39 +172,42 @@ export default function Page() {
       })
       .join("\n");
 
-    const blob = new Blob([content], { type: "text/plain" });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement("a");
-    link.href = url;
-    link.download = `membros_${formatLocalized(selectedMonth, "yyyy-MM")}.txt`;
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-    URL.revokeObjectURL(url);
-
-    toast({
-      title: "Arquivo exportado",
-      description: `${members.length} membros e suas respectivas datas de indispobilidade para ${formatLocalized(selectedMonth, "MMMM yyyy")} foram exportados.`,
-    });
+    handleTextFileExport(
+      content,
+      `membros_${formatLocalized(selectedMonth, "yyyy-MM")}`,
+      "Arquivo exportado",
+      `${members.length} membros e suas respectivas datas de indispobilidade para ${formatLocalized(selectedMonth, "MMMM yyyy")} foram exportados.`,
+    );
   };
 
   const handleMembersOnlyExport = () => {
     const content = members.map((member) => member.name).join("\n");
 
-    const blob = new Blob([content], { type: "text/plain" });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement("a");
-    link.href = url;
-    link.download = `membros.txt`;
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-    URL.revokeObjectURL(url);
+    handleTextFileExport(
+      content,
+      "membros",
+      "Arquivo exportado",
+      `${members.length} foram exportados.`,
+    );
+  };
 
-    toast({
-      title: "Arquivo exportado",
-      description: `${members.length} foram exportados.`,
-    });
+  const handleScheduleExport = () => {
+    const content = schedule
+      .map(
+        (schedule) =>
+          `*${formatLocalized(schedule.date, "EEEE, dd MMM")}*\n` +
+          schedule.members.map((member) => member).join("\n"),
+      )
+      .join("\n\n");
+
+    const date = formatLocalized(schedule[0].date, "yyyy-MM");
+
+    handleTextFileExport(
+      content,
+      `escala_${date}`,
+      "Arquivo exportado",
+      `Escala para ${date} foi exportada.`,
+    );
   };
 
   const generateSchedule = () => {
@@ -381,7 +389,7 @@ export default function Page() {
               </div>
             </ScrollArea>
             <Button type="submit" className="w-full" disabled={name === ""}>
-              Adicionar/atualizar membro.
+              Adicionar/atualizar membro
             </Button>
           </form>
           <div className="space-y-2 mt-4">
@@ -486,7 +494,7 @@ export default function Page() {
               Escala para dias de fim de semana para o mês selecionado.
             </CardDescription>
             <Button
-              onClick={handleMembersOnlyExport}
+              onClick={handleScheduleExport}
               variant="default"
               className="w-full"
               disabled={members.length === 0}
@@ -496,7 +504,7 @@ export default function Page() {
             </Button>
           </CardHeader>
           <CardContent>
-            <div className="grid grid-cols-1 sm:grid-cols-1 lg:grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-1 lg:grid-cols-3 gap-4">
               {schedule.map((entry) => (
                 <Card
                   key={entry.date.toISOString()}
@@ -504,7 +512,7 @@ export default function Page() {
                 >
                   <CardHeader className="p-4 pb-0">
                     <CardTitle className="text-md">
-                      {formatLocalized(entry.date, "EEEE, MMM d")}
+                      {formatLocalized(entry.date, "EEEE, dd/MM")}
                     </CardTitle>
                   </CardHeader>
                   <CardContent className="p-4 pt-0">
