@@ -106,7 +106,7 @@ class State {
   readonly name: string;
   readonly unavailableDates: Date[];
   readonly selectedMonth: Date;
-  readonly selectedDate: Date | undefined;
+  readonly selectedDate?: Date;
   readonly schedule: ScheduleEntry[];
   readonly confirmation: Confirmation;
 
@@ -116,7 +116,9 @@ class State {
     this.unavailableDates =
       newState.unavailableDates ?? oldState?.unavailableDates ?? [];
     this.selectedDate =
-      newState.selectedDate ?? oldState?.selectedDate ?? undefined;
+      newState.selectedDate == undefined
+        ? undefined
+        : newState.selectedDate ?? oldState?.selectedDate;
     this.selectedMonth =
       newState.selectedMonth ?? oldState?.selectedMonth ?? new Date();
     this.schedule = newState.schedule ?? oldState?.schedule ?? [];
@@ -135,7 +137,7 @@ class State {
 
 export default function Page() {
   const availableMonths: Date[] = Array.from({ length: 12 }, (_, i: number) =>
-    addMonths(new Date(), i),
+    addMonths(new Date(), i)
   );
 
   let currentSelectedMonth: Date = availableMonths[0];
@@ -150,7 +152,7 @@ export default function Page() {
       selectedMonth: availableMonths[0],
       schedule: [],
       confirmation: new Confirmation({}),
-    }),
+    })
   );
 
   const updateState = (partialState: Partial<State>) => {
@@ -170,21 +172,27 @@ export default function Page() {
   };
 
   const handleAddDate = () => {
-    if (
-      state.selectedDate &&
-      !state.unavailableDates.some((date) => isEqual(date, state.selectedDate!))
-    ) {
-      updateState({
-        unavailableDates: [...state.unavailableDates, state.selectedDate],
-        selectedDate: undefined,
-      });
+    if (state.selectedDate) {
+      if (
+        !state.unavailableDates.some((date) =>
+          isEqual(date, state.selectedDate!)
+        )
+      ) {
+        updateState({
+          unavailableDates: [...state.unavailableDates, state.selectedDate],
+          selectedDate: undefined,
+        });
+        return;
+      }
+
+      updateState({ selectedDate: undefined });
     }
   };
 
   const handleRemoveDate = (dateToRemove: Date) => {
     updateState({
       unavailableDates: state.unavailableDates.filter(
-        (date) => !isEqual(date, dateToRemove),
+        (date) => !isEqual(date, dateToRemove)
       ),
     });
   };
@@ -195,7 +203,7 @@ export default function Page() {
     members.forEach((member) => {
       const existingMemberIndex = currentMembers.findIndex(
         (existingMember) =>
-          existingMember.name.toLowerCase() === member.name.toLowerCase(),
+          existingMember.name.toLowerCase() === member.name.toLowerCase()
       );
       if (existingMemberIndex !== -1) {
         const existingMember = currentMembers[existingMemberIndex];
@@ -204,8 +212,8 @@ export default function Page() {
           ...member.unavailableDates.filter(
             (newDate) =>
               !existingMember.unavailableDates.some((existingDate) =>
-                isEqual(existingDate, newDate),
-              ),
+                isEqual(existingDate, newDate)
+              )
           ),
         ];
         currentMembers = [
@@ -230,7 +238,7 @@ export default function Page() {
       updateMembers([
         { name: currentName, unavailableDates: state.unavailableDates },
       ]);
-      updateState({ name: "", unavailableDates: [] });
+      updateState({ name: "", unavailableDates: [], selectedDate: undefined });
     }
 
     toast({
@@ -278,15 +286,14 @@ export default function Page() {
         const updatedMembersToBeAdded: Member[] = membersToBeAdded.map(
           (member) => {
             const filteredDatesForMember = member.unavailableDates.filter(
-              (date) =>
-                monthDates.some((monthDate) => isEqual(monthDate, date)),
+              (date) => monthDates.some((monthDate) => isEqual(monthDate, date))
             );
 
             return {
               name: member.name,
               unavailableDates: filteredDatesForMember,
             };
-          },
+          }
         );
 
         updateMembers(updatedMembersToBeAdded);
@@ -315,7 +322,7 @@ export default function Page() {
       content,
       `membros_${formatLocalized(state.selectedMonth, "yyyy-MM")}`,
       "Arquivo exportado",
-      `${state.members.length} membros e suas respectivas datas de indispobilidade para ${formatLocalized(state.selectedMonth, "MMMM 'de' yyyy")} foram exportados.`,
+      `${state.members.length} membros e suas respectivas datas de indispobilidade para ${formatLocalized(state.selectedMonth, "MMMM 'de' yyyy")} foram exportados.`
     );
   };
 
@@ -326,7 +333,7 @@ export default function Page() {
       content,
       "membros",
       "Arquivo exportado",
-      `${state.members.length} foram exportados.`,
+      `${state.members.length} foram exportados.`
     );
   };
 
@@ -335,7 +342,7 @@ export default function Page() {
       .map(
         (schedule) =>
           `*${formatLocalized(schedule.date, "EEEE, dd MMM")}*\n` +
-          schedule.members.map((member) => member).join("\n"),
+          schedule.members.map((member) => member).join("\n")
       )
       .join("\n\n");
   };
@@ -347,7 +354,7 @@ export default function Page() {
       generateScheduleOutput(),
       `escala_${formattedDate}`,
       "Arquivo exportado",
-      `Escala para ${formattedDate} foi exportada.`,
+      `Escala para ${formattedDate} foi exportada.`
     );
   };
 
@@ -376,14 +383,14 @@ export default function Page() {
     const memberAssignmentCounts: { [key: string]: number } = {};
 
     const dates = state.monthDates.filter(
-      (date) => isSaturday(date) || isSunday(date) || isFriday(date),
+      (date) => isSaturday(date) || isSunday(date) || isFriday(date)
     );
     dates.forEach((date) => {
       let availableForDate = state.members.filter(
         (member) =>
           !member.unavailableDates.some((unavailableDate) =>
-            isEqual(unavailableDate, date),
-          ),
+            isEqual(unavailableDate, date)
+          )
       );
 
       if (availableForDate.length > 0) {
@@ -395,7 +402,7 @@ export default function Page() {
           availableForDate = availableForDate.sort(
             (a, b) =>
               (memberAssignmentCounts[a.name] || 0) -
-              (memberAssignmentCounts[b.name] || 0),
+              (memberAssignmentCounts[b.name] || 0)
           );
 
           while (true) {
@@ -404,7 +411,7 @@ export default function Page() {
             if (
               !scheduleMembers.some(
                 (alreadyScheduledMember) =>
-                  alreadyScheduledMember == selectedMember.name,
+                  alreadyScheduledMember == selectedMember.name
               )
             ) {
               memberAssignmentCounts[selectedMember.name] =
@@ -440,17 +447,14 @@ export default function Page() {
             <div className="space-y-2">
               <Label htmlFor="month-select">Selecionar mês</Label>
               <Select
-                value={formatLocalized(
-                  state.selectedMonth,
-                  "MMMM 'de' yyyy",
-                )}
+                value={formatLocalized(state.selectedMonth, "MMMM 'de' yyyy")}
                 onValueChange={(value) =>
                   updateState({
                     confirmation: new Confirmation({
                       isOpen: true,
                       confirmAction: () => {
                         handleMonthSelection(
-                          parseLocalized(value, "MMMM 'de' yyyy"),
+                          parseLocalized(value, "MMMM 'de' yyyy")
                         );
                       },
                       description: `Ao selecionar um mês diferente do atual, todos os cadastros atuais serão excluídos. Certifique-se que a configuração atual foi exportado antes de continuar.,`,
@@ -494,7 +498,7 @@ export default function Page() {
                       variant={"outline"}
                       className={cn(
                         "w-full justify-start text-left font-normal",
-                        !state.selectedDate && "text-muted-foreground",
+                        !state.selectedDate && "text-muted-foreground"
                       )}
                     >
                       <CalendarIcon className="mr-2 h-4 w-4" />

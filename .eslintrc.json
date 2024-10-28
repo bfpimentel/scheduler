@@ -1,6 +1,3 @@
   {
     "extends": ["next/core-web-vitals", "next/typescript"],
-    "rules": {
-      "max-len": [{ "code": 120 }],
-    },
   }
