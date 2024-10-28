@@ -278,9 +278,8 @@ export default function Page() {
         const updatedMembersToBeAdded: Member[] = membersToBeAdded.map(
           (member) => {
             const filteredDatesForMember = member.unavailableDates.filter(
-              (date) => {
-                return monthDates.some((monthDate) => isEqual(monthDate, date));
-              },
+              (date) =>
+                monthDates.some((monthDate) => isEqual(monthDate, date)),
             );
 
             return {
@@ -441,7 +440,7 @@ export default function Page() {
             <div className="space-y-2">
               <Label htmlFor="month-select">Selecionar mês</Label>
               <Select
-                defaultValue={formatLocalized(
+                value={formatLocalized(
                   state.selectedMonth,
                   "MMMM 'de' yyyy",
                 )}
