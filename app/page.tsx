@@ -1,9 +1,8 @@
 "use client";
 
-import { useState, useRef, useMemo } from "react";
+import { useState, useRef, useMemo, useEffect } from "react";
 import { CalendarIcon, PlusCircle, X, Upload, Download } from "lucide-react";
 import {
-  parse,
   isEqual,
   startOfMonth,
   endOfMonth,
@@ -12,13 +11,14 @@ import {
   isSaturday,
   isSunday,
   isFriday,
+  isSameMonth,
 } from "date-fns";
-import { ptBR } from "date-fns/locale";
 import {
   cn,
   formatLocalized,
   randomInt,
   handleTextFileExport,
+  parseLocalized,
 } from "@/lib/utils";
 import {
   AlertDialog,
@@ -65,189 +65,274 @@ import {
 } from "@/components/ui/select";
 
 type Member = {
-  id: number;
   name: string;
   unavailableDates: Date[];
 };
 
-type Schedule = {
+type ScheduleEntry = {
   date: Date;
   members: string[];
 };
 
-type Confirmation = {
-  isOpen: boolean;
-  confirmAction: () => void;
-  cancelAction: () => void;
-  description: string;
-};
+class Confirmation {
+  private _confirmAction: () => void = () => {};
+  private _cancelAction: () => void = () => {};
+
+  readonly isOpen: boolean;
+  readonly description: string;
+
+  constructor(confirmation: Partial<Confirmation>) {
+    this.isOpen = confirmation.isOpen ?? false;
+    this.description = confirmation.description ?? "";
+    this._confirmAction = confirmation.confirmAction ?? (() => {});
+    this._cancelAction = confirmation.cancelAction ?? (() => {});
+  }
+
+  get confirmAction(): () => void {
+    const oldConfirmAction = this._confirmAction;
+    this._confirmAction = () => {};
+    return oldConfirmAction;
+  }
+
+  get cancelAction(): () => void {
+    const oldCancelAction = this._cancelAction;
+    this._cancelAction = () => {};
+    return oldCancelAction;
+  }
+}
+
+class State {
+  readonly members: Member[];
+  readonly name: string;
+  readonly unavailableDates: Date[];
+  readonly selectedMonth: Date;
+  readonly selectedDate: Date | undefined;
+  readonly schedule: ScheduleEntry[];
+  readonly confirmation: Confirmation;
+
+  constructor(newState: Partial<State>, oldState?: State) {
+    this.members = newState.members ?? oldState?.members ?? [];
+    this.name = newState.name ?? oldState?.name ?? "";
+    this.unavailableDates =
+      newState.unavailableDates ?? oldState?.unavailableDates ?? [];
+    this.selectedDate =
+      newState.selectedDate ?? oldState?.selectedDate ?? undefined;
+    this.selectedMonth =
+      newState.selectedMonth ?? oldState?.selectedMonth ?? new Date();
+    this.schedule = newState.schedule ?? oldState?.schedule ?? [];
+    this.confirmation =
+      newState.confirmation ?? oldState?.confirmation ?? new Confirmation({});
+  }
+
+  get monthDates(): Date[] {
+    if (!this.selectedMonth) return [];
+
+    const start = startOfMonth(this.selectedMonth);
+    const end = endOfMonth(this.selectedMonth);
+    return eachDayOfInterval({ start, end });
+  }
+}
 
 export default function Page() {
   const availableMonths: Date[] = Array.from({ length: 12 }, (_, i: number) =>
     addMonths(new Date(), i),
   );
 
-  const [members, setMembers] = useState<Member[]>([]);
-  const [name, setName] = useState("");
-  const [unavailableDates, setUnavailableDates] = useState<Date[]>([]);
-  const [currentDate, setCurrentDate] = useState<Date>();
-  const [selectedMonth, setSelectedMonth] = useState<Date>(availableMonths[0]);
-  const [schedule, setSchedule] = useState<Schedule[]>([]);
-  const [confirmation, setConfirmation] = useState<Confirmation>({
-    isOpen: false,
-    confirmAction: () => {},
-    cancelAction: () => {},
-    description: "",
-  });
-
-  const { toast } = useToast();
+  let currentSelectedMonth: Date = availableMonths[0];
 
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const { toast } = useToast();
+  const [state, setState] = useState<State>(
+    new State({
+      name: "",
+      members: [],
+      unavailableDates: [],
+      selectedMonth: availableMonths[0],
+      schedule: [],
+      confirmation: new Confirmation({}),
+    }),
+  );
 
-  const monthDates = useMemo(() => {
-    const start = startOfMonth(selectedMonth);
-    const end = endOfMonth(selectedMonth);
-    return eachDayOfInterval({ start, end });
-  }, [selectedMonth]);
+  const updateState = (partialState: Partial<State>) => {
+    setState((currentState) => new State(partialState, currentState));
+  };
 
-  const handleMonthSelection = (monthValue: string) => {
-    if (monthValue && monthValue != "") {
-      setSelectedMonth(
-        parse(monthValue, "MMMM 'de' yyyy", new Date(), {
-          locale: ptBR,
-        }),
-      );
-    }
+  const handleMonthSelection = (month: Date) => {
+    if (isSameMonth(state.selectedMonth, month)) return;
+    currentSelectedMonth = month;
+    updateState({
+      selectedMonth: month,
+      name: "",
+      members: [],
+      unavailableDates: [],
+      schedule: [],
+    });
   };
 
   const handleAddDate = () => {
     if (
-      currentDate &&
-      !unavailableDates.some((date) => isEqual(date, currentDate))
+      state.selectedDate &&
+      !state.unavailableDates.some((date) => isEqual(date, state.selectedDate!))
     ) {
-      setUnavailableDates([...unavailableDates, currentDate]);
-      setCurrentDate(undefined);
+      updateState({
+        unavailableDates: [...state.unavailableDates, state.selectedDate],
+        selectedDate: undefined,
+      });
     }
   };
 
   const handleRemoveDate = (dateToRemove: Date) => {
-    setUnavailableDates(
-      unavailableDates.filter((date) => !isEqual(date, dateToRemove)),
-    );
+    updateState({
+      unavailableDates: state.unavailableDates.filter(
+        (date) => !isEqual(date, dateToRemove),
+      ),
+    });
   };
 
-  const updateMember = (name: string, newUnavailableDates: Date[]) => {
-    setMembers((prevMembers) => {
-      const existingMemberIndex = prevMembers.findIndex(
-        (m) => m.name.toLowerCase() === name.toLowerCase(),
+  const updateMembers = (members: Member[]) => {
+    let currentMembers: Member[] = state.members;
+
+    members.forEach((member) => {
+      const existingMemberIndex = currentMembers.findIndex(
+        (existingMember) =>
+          existingMember.name.toLowerCase() === member.name.toLowerCase(),
       );
       if (existingMemberIndex !== -1) {
-        const existingMember = prevMembers[existingMemberIndex];
+        const existingMember = currentMembers[existingMemberIndex];
         const updatedDates = [
           ...existingMember.unavailableDates,
-          ...newUnavailableDates.filter(
+          ...member.unavailableDates.filter(
             (newDate) =>
               !existingMember.unavailableDates.some((existingDate) =>
                 isEqual(existingDate, newDate),
               ),
           ),
         ];
-        return [
-          ...prevMembers.slice(0, existingMemberIndex),
+        currentMembers = [
+          ...currentMembers.slice(0, existingMemberIndex),
           { ...existingMember, unavailableDates: updatedDates },
-          ...prevMembers.slice(existingMemberIndex + 1),
+          ...currentMembers.slice(existingMemberIndex + 1),
         ];
       } else {
-        return [
-          ...prevMembers,
-          { id: Date.now(), name, unavailableDates: newUnavailableDates },
-        ];
+        currentMembers = [...currentMembers, member];
       }
     });
+
+    updateState({ members: currentMembers });
   };
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (name) {
-      updateMember(name, unavailableDates ?? []);
-      setName("");
-      setUnavailableDates([]);
-      toast({
-        title: "Membro atualizado",
-        description: `As datas de indisponibilidade do membro ${name} foram atualizadas para ${formatLocalized(selectedMonth, "MMMM 'de' yyyy")}.`,
-      });
+
+    const currentName = state.name;
+
+    if (state.name) {
+      updateMembers([
+        { name: currentName, unavailableDates: state.unavailableDates },
+      ]);
+      updateState({ name: "", unavailableDates: [] });
     }
+
+    toast({
+      title: "Membro atualizado",
+      description: `As datas de indisponibilidade do membro ${currentName} foram atualizadas para ${formatLocalized(state.selectedMonth, "MMMM 'de' yyyy")}.`,
+    });
   };
 
   const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
       const reader = new FileReader();
+
       reader.onload = (event) => {
         const content = event.target?.result as string;
         const lines = content.split("\n");
-        let hasSetMonth = false;
+        const membersToBeAdded: Member[] = [];
+        let newMonth: Date | undefined = undefined;
 
         lines.forEach((line) => {
           const [name, ...dateParts] = line.split(",");
           const dates = dateParts
-            .map((datePart) => parse(datePart.trim(), "yyyy-MM-dd", new Date()))
-            .filter(
-              (date) =>
-                !isNaN(date.getTime()) &&
-                monthDates.some((monthDate) => isEqual(monthDate, date)),
-            );
+            .map((datePart) => parseLocalized(datePart.trim(), "dd/MM/yyyy"))
+            .filter((date) => !isNaN(date.getTime()));
+
+          const firstDate: Date | undefined = dates[0];
+          if (firstDate && !newMonth) {
+            newMonth = firstDate;
+          }
 
           if (name) {
-            if (dates.length > 0 && !hasSetMonth) {
-              setSelectedMonth(dates[0]);
-              setMembers([]);
-              hasSetMonth = true;
-            }
-
-            updateMember(name.trim(), dates ?? []);
+            membersToBeAdded.push({
+              name: name.trim(),
+              unavailableDates: dates ?? [],
+            });
           }
         });
+
+        if (newMonth) handleMonthSelection(newMonth);
+
+        const start = startOfMonth(newMonth ?? state.selectedMonth);
+        const end = endOfMonth(newMonth ?? state.selectedMonth);
+        const monthDates = eachDayOfInterval({ start, end });
+
+        const updatedMembersToBeAdded: Member[] = membersToBeAdded.map(
+          (member) => {
+            const filteredDatesForMember = member.unavailableDates.filter(
+              (date) => {
+                return monthDates.some((monthDate) => isEqual(monthDate, date));
+              },
+            );
+
+            return {
+              name: member.name,
+              unavailableDates: filteredDatesForMember,
+            };
+          },
+        );
+
+        updateMembers(updatedMembersToBeAdded);
+
         toast({
           title: "Arquivo processado",
-          description: `Membros e suas respectivas datas de indisponbilidade foram atualizados para ${formatLocalized(selectedMonth, "MMMM 'de' yyyy")}.`,
+          description: `Membros e suas respectivas datas de indisponbilidade foram atualizados para ${formatLocalized(state.selectedMonth, "MMMM 'de' yyyy")}.`,
         });
       };
+
       reader.readAsText(file);
     }
   };
 
   const handleMembersAndDatesExport = () => {
-    const content = members
+    const content = state.members
       .map((member) => {
-        const datesFormatted = member.unavailableDates
-          .map((date) => formatLocalized(date, "yyyy-MM-dd"))
+        const formattedDates = member.unavailableDates
+          .map((date) => formatLocalized(date, "dd/MM/yyyy"))
           .join(", ");
-        return `${member.name}, ${datesFormatted}`;
+        return `${member.name}, ${formattedDates}`;
       })
       .join("\n");
 
     handleTextFileExport(
       content,
-      `membros_${formatLocalized(selectedMonth, "yyyy-MM")}`,
+      `membros_${formatLocalized(state.selectedMonth, "yyyy-MM")}`,
       "Arquivo exportado",
-      `${members.length} membros e suas respectivas datas de indispobilidade para ${formatLocalized(selectedMonth, "MMMM 'de' yyyy")} foram exportados.`,
+      `${state.members.length} membros e suas respectivas datas de indispobilidade para ${formatLocalized(state.selectedMonth, "MMMM 'de' yyyy")} foram exportados.`,
     );
   };
 
   const handleMembersOnlyExport = () => {
-    const content = members.map((member) => member.name).join("\n");
+    const content = state.members.map((member) => member.name).join("\n");
 
     handleTextFileExport(
       content,
       "membros",
       "Arquivo exportado",
-      `${members.length} foram exportados.`,
+      `${state.members.length} foram exportados.`,
     );
   };
 
   const generateScheduleOutput = (): string => {
-    return schedule
+    return state.schedule
       .map(
         (schedule) =>
           `*${formatLocalized(schedule.date, "EEEE, dd MMM")}*\n` +
@@ -257,7 +342,7 @@ export default function Page() {
   };
 
   const handleScheduleExport = () => {
-    const formattedDate = formatLocalized(schedule[0].date, "yyyy-MM");
+    const formattedDate = formatLocalized(state.schedule[0].date, "yyyy-MM");
 
     handleTextFileExport(
       generateScheduleOutput(),
@@ -268,7 +353,7 @@ export default function Page() {
   };
 
   const handleScheduleCopy = () => {
-    const formattedDate = formatLocalized(schedule[0].date, "yyyy-MM");
+    const formattedDate = formatLocalized(state.schedule[0].date, "yyyy-MM");
 
     navigator.clipboard.writeText(generateScheduleOutput());
 
@@ -279,7 +364,7 @@ export default function Page() {
   };
 
   const generateSchedule = () => {
-    if (members.length < 4) {
+    if (state.members.length < 4) {
       toast({
         title: "Não foi possível gerar a escala.",
         description: "Não há membros suficientes para gerar uma escala.",
@@ -288,14 +373,14 @@ export default function Page() {
       return;
     }
 
-    const schedule: Schedule[] = [];
+    const schedule: ScheduleEntry[] = [];
     const memberAssignmentCounts: { [key: string]: number } = {};
 
-    const dates = monthDates.filter(
+    const dates = state.monthDates.filter(
       (date) => isSaturday(date) || isSunday(date) || isFriday(date),
     );
     dates.forEach((date) => {
-      let availableForDate = members.filter(
+      let availableForDate = state.members.filter(
         (member) =>
           !member.unavailableDates.some((unavailableDate) =>
             isEqual(unavailableDate, date),
@@ -335,10 +420,10 @@ export default function Page() {
       }
     });
 
-    setSchedule(schedule);
+    updateState({ schedule: schedule });
     toast({
       title: "Escala gerada",
-      description: `Uma nova escala para ${formatLocalized(selectedMonth, "MMMM 'de' yyyy")} foi gerada.`,
+      description: `Uma nova escala para ${formatLocalized(state.selectedMonth, "MMMM 'de' yyyy")} foi gerada.`,
     });
   };
 
@@ -356,18 +441,28 @@ export default function Page() {
             <div className="space-y-2">
               <Label htmlFor="month-select">Selecionar mês</Label>
               <Select
-                value={formatLocalized(selectedMonth, "MMMM 'de' yyyy")}
+                defaultValue={formatLocalized(
+                  state.selectedMonth,
+                  "MMMM 'de' yyyy",
+                )}
                 onValueChange={(value) =>
-                  setConfirmation({
-                    isOpen: true,
-                    confirmAction: () => handleMonthSelection(value),
-                    cancelAction: () => setSelectedMonth(selectedMonth),
-                    description: `Ao selecionar um mês diferente do atual, todos os cadastros atuais serão excluídos. Certifique-se que a configuração atual foi exportado antes de continuar.,`,
+                  updateState({
+                    confirmation: new Confirmation({
+                      isOpen: true,
+                      confirmAction: () => {
+                        handleMonthSelection(
+                          parseLocalized(value, "MMMM 'de' yyyy"),
+                        );
+                      },
+                      description: `Ao selecionar um mês diferente do atual, todos os cadastros atuais serão excluídos. Certifique-se que a configuração atual foi exportado antes de continuar.,`,
+                    }),
                   })
                 }
               >
                 <SelectTrigger id="month-select">
-                  <SelectValue placeholder="Selecione um mês" />
+                  <SelectValue placeholder="Selecione um mês">
+                    {formatLocalized(state.selectedMonth, "MMMM 'de' yyyy")}
+                  </SelectValue>
                 </SelectTrigger>
                 <SelectContent>
                   {availableMonths.map((date) => (
@@ -386,8 +481,8 @@ export default function Page() {
               <Input
                 id="name"
                 placeholder="Insira um nome"
-                value={name}
-                onChange={(e) => setName(e.target.value)}
+                value={state.name}
+                onChange={(e) => updateState({ name: e.target.value })}
                 required
               />
             </div>
@@ -400,12 +495,12 @@ export default function Page() {
                       variant={"outline"}
                       className={cn(
                         "w-full justify-start text-left font-normal",
-                        !currentDate && "text-muted-foreground",
+                        !state.selectedDate && "text-muted-foreground",
                       )}
                     >
                       <CalendarIcon className="mr-2 h-4 w-4" />
-                      {currentDate ? (
-                        formatLocalized(currentDate, "PPP")
+                      {state.selectedDate ? (
+                        formatLocalized(state.selectedDate, "PPP")
                       ) : (
                         <span>Escolha uma data</span>
                       )}
@@ -414,11 +509,11 @@ export default function Page() {
                   <PopoverContent className="w-auto p-0">
                     <Calendar
                       mode="single"
-                      selected={currentDate}
-                      onSelect={setCurrentDate}
-                      defaultMonth={selectedMonth}
-                      fromDate={monthDates[0]}
-                      toDate={monthDates[monthDates.length - 1]}
+                      selected={state.selectedDate}
+                      onSelect={(value) => updateState({ selectedDate: value })}
+                      defaultMonth={state.selectedMonth}
+                      fromDate={state.monthDates[0]}
+                      toDate={state.monthDates[state.monthDates.length - 1]}
                       initialFocus
                     />
                   </PopoverContent>
@@ -426,7 +521,7 @@ export default function Page() {
                 <Button
                   type="button"
                   onClick={handleAddDate}
-                  disabled={!currentDate}
+                  disabled={!state.selectedDate}
                 >
                   <PlusCircle className="h-4 w-4" />
                   <span className="sr-only">Adicionar data</span>
@@ -435,7 +530,7 @@ export default function Page() {
             </div>
             <ScrollArea className="h-[100px] w-full rounded-md border p-4">
               <div className="flex flex-wrap gap-2">
-                {unavailableDates.map((date) => (
+                {state.unavailableDates.map((date) => (
                   <div
                     key={date.getTime()}
                     className="flex items-center bg-secondary text-secondary-foreground rounded-full px-3 py-1 text-sm"
@@ -455,7 +550,11 @@ export default function Page() {
                 ))}
               </div>
             </ScrollArea>
-            <Button type="submit" className="w-full" disabled={name === ""}>
+            <Button
+              type="submit"
+              className="w-full"
+              disabled={state.name === ""}
+            >
               Adicionar/atualizar membro
             </Button>
           </form>
@@ -469,11 +568,12 @@ export default function Page() {
             />
             <Button
               onClick={() =>
-                setConfirmation({
-                  isOpen: true,
-                  confirmAction: () => fileInputRef.current?.click(),
-                  cancelAction: () => setSelectedMonth(selectedMonth),
-                  description: `Ao importar as configurações de um mês diferente do selecionado, todos os cadastros atuais serão excluídos. Certifique-se que a configuração atual foi exportado antes de continuar.,`,
+                updateState({
+                  confirmation: new Confirmation({
+                    isOpen: true,
+                    confirmAction: () => fileInputRef.current?.click(),
+                    description: `Ao importar as configurações de um mês diferente do selecionado, todos os cadastros atuais serão excluídos. Certifique-se que a configuração atual foi exportado antes de continuar.,`,
+                  }),
                 })
               }
               variant="outline"
@@ -486,7 +586,7 @@ export default function Page() {
               onClick={handleMembersOnlyExport}
               variant="outline"
               className="w-full"
-              disabled={members.length === 0}
+              disabled={state.members.length === 0}
             >
               <Download className="mr-2 h-4 w-4" />
               Exportar membros
@@ -495,7 +595,7 @@ export default function Page() {
               onClick={handleMembersAndDatesExport}
               variant="outline"
               className="w-full"
-              disabled={members.length === 0}
+              disabled={state.members.length === 0}
             >
               <Download className="mr-2 h-4 w-4" />
               Exportar membros e datas
@@ -506,7 +606,7 @@ export default function Page() {
               onClick={generateSchedule}
               variant="default"
               className="w-full"
-              disabled={members.length < 4}
+              disabled={state.members.length < 4}
             >
               <CalendarIcon className="mr-2 h-4 w-4" />
               Gerar escala
@@ -518,7 +618,7 @@ export default function Page() {
         <CardHeader>
           <CardTitle>
             Membros e datas de indisponibilidade para{" "}
-            {formatLocalized(selectedMonth, "MMMM 'de' yyyy")}
+            {formatLocalized(state.selectedMonth, "MMMM 'de' yyyy")}
           </CardTitle>
           <CardDescription>
             Visualize todos os membros e suas respectivas datas de
@@ -526,10 +626,10 @@ export default function Page() {
           </CardDescription>
         </CardHeader>
         <CardContent>
-          {members.length > 0 ? (
+          {state.members.length > 0 ? (
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-              {members.map((member) => (
-                <Card key={member.id} className="overflow-hidden">
+              {state.members.map((member) => (
+                <Card key={member.name} className="overflow-hidden">
                   <CardHeader className="p-4">
                     <CardTitle className="text-md">{member.name}</CardTitle>
                   </CardHeader>
@@ -553,40 +653,49 @@ export default function Page() {
           ) : (
             <p className="text-muted-foreground">
               Ainda não há membros para{" "}
-              {formatLocalized(selectedMonth, "MMMM 'de' yyyy")}.
+              {formatLocalized(state.selectedMonth, "MMMM 'de' yyyy")}.
             </p>
           )}
         </CardContent>
         <AlertDialog
-          open={confirmation.isOpen}
+          open={state.confirmation.isOpen}
           onOpenChange={(isOpen) =>
-            setConfirmation({ ...confirmation, isOpen: isOpen })
+            updateState({
+              confirmation: new Confirmation({
+                ...state.confirmation,
+                isOpen: isOpen,
+              }),
+            })
           }
         >
           <AlertDialogContent>
             <AlertDialogHeader>
               <AlertDialogTitle>Cuidado!</AlertDialogTitle>
               <AlertDialogDescription>
-                {confirmation.description}
+                {state.confirmation.description}
               </AlertDialogDescription>
             </AlertDialogHeader>
             <AlertDialogFooter>
-              <AlertDialogCancel onClick={confirmation.cancelAction}>
+              <AlertDialogCancel
+                onClick={() => state.confirmation.cancelAction()}
+              >
                 Cancelar
               </AlertDialogCancel>
-              <AlertDialogAction onClick={confirmation.confirmAction}>
+              <AlertDialogAction
+                onClick={() => state.confirmation.confirmAction()}
+              >
                 Continuar
               </AlertDialogAction>
             </AlertDialogFooter>
           </AlertDialogContent>
         </AlertDialog>
       </Card>
-      {schedule.length > 0 && (
+      {state.schedule.length > 0 && (
         <Card className="w-full md:w-2/3">
           <CardHeader>
             <CardTitle>
               Escala gerada para{" "}
-              {formatLocalized(selectedMonth, "MMMM 'de' yyyy")}
+              {formatLocalized(state.selectedMonth, "MMMM 'de' yyyy")}
             </CardTitle>
             <CardDescription>
               Escala para dias de fim de semana para o mês selecionado.
@@ -596,7 +705,7 @@ export default function Page() {
                 <Button
                   variant="default"
                   className="w-full"
-                  disabled={members.length === 0}
+                  disabled={state.members.length === 0}
                 >
                   <Download className="mr-2 h-4 w-4" />
                   Exportar escala
@@ -606,7 +715,7 @@ export default function Page() {
                 <DialogHeader>
                   <DialogTitle>
                     Escala para{" "}
-                    {formatLocalized(selectedMonth, "MMMM 'de' yyyy")}
+                    {formatLocalized(state.selectedMonth, "MMMM 'de' yyyy")}
                   </DialogTitle>
                   <DialogDescription>
                     Exporte a escala para um arquivo de texto ou, se preferir,
@@ -617,7 +726,7 @@ export default function Page() {
                   onClick={handleScheduleExport}
                   variant="default"
                   className="w-full"
-                  disabled={members.length === 0}
+                  disabled={state.members.length === 0}
                 >
                   <Download className="mr-2 h-4 w-4" />
                   Exportar para arquivo de texto
@@ -626,7 +735,7 @@ export default function Page() {
                   onClick={handleScheduleCopy}
                   variant="outline"
                   className="w-full"
-                  disabled={members.length === 0}
+                  disabled={state.members.length === 0}
                 >
                   <Download className="mr-2 h-4 w-4" />
                   Copiar para a àrea de transferência
@@ -636,7 +745,7 @@ export default function Page() {
           </CardHeader>
           <CardContent>
             <div className="grid grid-cols-1 sm:grid-cols-1 lg:grid-cols-3 gap-4">
-              {schedule.map((entry) => (
+              {state.schedule.map((entry) => (
                 <Card
                   key={entry.date.toISOString()}
                   className="overflow-hidden"

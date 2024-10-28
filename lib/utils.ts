@@ -1,6 +1,6 @@
 import { clsx, type ClassValue } from "clsx";
 import { twMerge } from "tailwind-merge";
-import { format } from "date-fns";
+import { format, parse } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { toast } from "@/hooks/use-toast";
 
@@ -8,8 +8,12 @@ function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
 }
 
-function formatLocalized(selectedMonth: Date, pattern: string): string {
-  return format(selectedMonth, pattern, { locale: ptBR });
+function formatLocalized(date: Date, pattern: string): string {
+  return format(date, pattern, { locale: ptBR });
+}
+
+function parseLocalized(text: string, pattern: string): Date {
+  return parse(text, pattern, new Date(), { locale: ptBR });
 }
 
 function randomInt(min: number, max: number): number {
@@ -38,4 +42,4 @@ function handleTextFileExport(
   });
 }
 
-export { cn, formatLocalized, randomInt, handleTextFileExport };
+export { cn, formatLocalized, parseLocalized, randomInt, handleTextFileExport };
